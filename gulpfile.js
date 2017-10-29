@@ -34,7 +34,7 @@ function copyBin(callback) {
 
             const targetPath = drives[0].mountpoints[0].path + '//cdp_gc_2017_mbed_firmware.bin';
 
-            copyFile('BUILD/LPC1768/GCC_ARM/cdp_gc_2017_mbed_firmware.bin', targetPath, callback);
+            copyFile('BUILD/LPC1768/GCC_ARM/cdpgc17-mbed-firmware.bin', targetPath, callback);
         } else {
             console.log('No drives found');
 
@@ -128,7 +128,8 @@ gulp.task('run', ['compile-program']);
 }*/
 
 function copyFile(source, target, cb) {
-    console.log('Copying from', source, 'to', target);
+    //console.log('Copying from', source, 'to', target);
+    console.log('Copying from', path.normalize(source), 'to', path.normalize(target));
 
     const child = spawn('copy', [
         path.normalize(source), path.normalize(target),

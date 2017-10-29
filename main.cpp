@@ -91,14 +91,18 @@ void onUDPSocketData(void* buffer, int size) {
         SpeedCommand * command = static_cast<SpeedCommand*>(buffer);
 
         int pipeMotorSpeed = command->pipeMotorSpeed;
-        int boomMotorSpeed = command->boomMotorSpeed;
-        int pipeMotorPosition = pipeMotorSpeed < 0 ? -100 : 100;
+        int boomMotorSpeed = command->xMotorSpeed;
+        int pipeMotorPosition = pipeMotorSpeed < 0 ? -1000 : 1000;
 
         //pc.printf("pipe motor speed %d\n", pipeMotorSpeed);
         //pc.printf("boom motor speed %d\n", boomMotorSpeed);
 
         if (pipeMotorSpeed < 0) {
             pipeMotorSpeed = -pipeMotorSpeed;
+        }
+
+        if (pipeMotorSpeed > 64000) {
+            pipeMotorSpeed = 64000;
         }
 
         int qSpeed = ((pipeMotorSpeed << 10) / 1000) << 10;
@@ -184,9 +188,9 @@ int main() {
             Feedback feedback;
 
             feedback.pipeMotorPosition = pipeMotorPosition;
-            feedback.pipeMotorSpeed = (int16_t) pipeMotorSpeed;
-            feedback.boomMotorPosition = 0;
-            feedback.boomMotorSpeed = 0;
+            feedback.pipeMotorSpeed = pipeMotorSpeed;
+            feedback.xMotorPosition = 0;
+            feedback.xMotorSpeed = 0;
 
             socket.sendto("192.168.4.8", 8042, &feedback, sizeof feedback);
         }
