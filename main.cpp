@@ -19,7 +19,8 @@ char recvBuffer[64];
 
 uint32_t serialReceiveCounter = 0;
 char serialReceiveBuffer[64];
-uint32_t serialRxLength = 10;
+uint32_t serialRxLength = 18;
+uint32_t serialTxLength = 18;
 
 void ledUpdateTick() {
     ledUpdate = true;
@@ -91,38 +92,58 @@ void onUDPSocketData(void* buffer, int size) {
         SpeedCommand * command = static_cast<SpeedCommand*>(buffer);
 
         int pipeMotorSpeed = command->pipeMotorSpeed;
-        int boomMotorSpeed = command->xMotorSpeed;
-        int pipeMotorPosition = pipeMotorSpeed < 0 ? -1000 : 1000;
+        int xMotorSpeed = command->xMotorSpeed;
+        int pipeMotorPosition = pipeMotorSpeed < 0 ? -100 : 100;
+        int xMotorPosition = xMotorSpeed < 0 ? -100 : 100;
 
-        //pc.printf("pipe motor speed %d\n", pipeMotorSpeed);
-        //pc.printf("boom motor speed %d\n", boomMotorSpeed);
+        //pc.printf("Y pos %d\n", pipeMotorPosition);
+        //pc.printf("Y speed %d\n", pipeMotorSpeed);
+        //pc.printf("X position %d\n", xMotorPosition);
+        //pc.printf("X speed %d\n", xMotorSpeed);
 
         if (pipeMotorSpeed < 0) {
             pipeMotorSpeed = -pipeMotorSpeed;
+        }
+
+        if (xMotorSpeed < 0) {
+            xMotorSpeed = -xMotorSpeed;
         }
 
         if (pipeMotorSpeed > 64000) {
             pipeMotorSpeed = 64000;
         }
 
-        int qSpeed = ((pipeMotorSpeed << 10) / 1000) << 10;
-        int qPosition = pipeMotorPosition << 20;
+        if (xMotorSpeed > 64000) {
+            xMotorSpeed = 64000;
+        }
 
-        char sendBuffer[10];
+        int qPipeMotorSpeed = ((pipeMotorSpeed << 10) / 1000) << 10;
+        int qPipeMotorPosition = pipeMotorPosition << 20;
+
+        int qXMotorSpeed = ((xMotorSpeed << 10) / 1000) << 10;
+        int qXMotorPosition = xMotorPosition << 20;
+
+        char sendBuffer[serialTxLength];
 
         sendBuffer[0] = '<';
 
-        int * positionLocation = (int*)(&sendBuffer[1]);
-        int * speedLocation = (int*)(&sendBuffer[5]);
+        int * xPositionLocation = (int*)(&sendBuffer[1]);
+        int * xSpeedLocation = (int*)(&sendBuffer[5]);
 
-        *speedLocation = qSpeed;
-        *positionLocation = qPosition;
+        int * pipePositionLocation = (int*)(&sendBuffer[9]);
+        int * pipeSpeedLocation = (int*)(&sendBuffer[13]);
 
-        sendBuffer[9] = '>';
+        *pipePositionLocation = qPipeMotorPosition;
+        *pipeSpeedLocation = qPipeMotorSpeed;
+
+        *xPositionLocation = qXMotorPosition;
+        *xSpeedLocation = qXMotorSpeed;
+
+        sendBuffer[17] = '>';
 
         //pc.printf("serialWrite called %d %*.*s\n", 10, 10, 10, sendBuffer);
         //pc.printf("serialWrite called\n");
-        serialWrite(sendBuffer, 10);
+        serialWrite(sendBuffer, serialTxLength);
     }
 }
 
@@ -168,20 +189,34 @@ int main() {
             onUDPSocketData(recvBuffer, size);
         }
 
-        if (serialReceiveCounter == 10) {
+        if (serialReceiveCounter == serialRxLength) {
             serialReceiveCounter = 0;
 
-            int pipeMotorPosition = ((int) serialReceiveBuffer[1])
+            int xMotorPosition = ((int) serialReceiveBuffer[1])
                                     | ((int) serialReceiveBuffer[2] << 8)
                                     | ((int) serialReceiveBuffer[3] << 16)
                                     | ((int) serialReceiveBuffer[4] << 24);
 
-            pipeMotorPosition = ((pipeMotorPosition >> 10) * 1000) >> 10;
+            xMotorPosition = ((xMotorPosition >> 10) * 1000) >> 10;
 
-            int pipeMotorSpeed = ((int) serialReceiveBuffer[5])
+            int xMotorSpeed = ((int) serialReceiveBuffer[5])
                                  | ((int) serialReceiveBuffer[6] << 8)
                                  | ((int) serialReceiveBuffer[7] << 16)
                                  | ((int) serialReceiveBuffer[8] << 24);
+
+            xMotorSpeed = ((xMotorSpeed >> 10) * 1000) >> 10;
+
+            int pipeMotorPosition = ((int) serialReceiveBuffer[9])
+                                 | ((int) serialReceiveBuffer[10] << 8)
+                                 | ((int) serialReceiveBuffer[11] << 16)
+                                 | ((int) serialReceiveBuffer[12] << 24);
+
+            pipeMotorPosition = ((pipeMotorPosition >> 10) * 1000) >> 10;
+
+            int pipeMotorSpeed = ((int) serialReceiveBuffer[13])
+                              | ((int) serialReceiveBuffer[14] << 8)
+                              | ((int) serialReceiveBuffer[15] << 16)
+                              | ((int) serialReceiveBuffer[16] << 24);
 
             pipeMotorSpeed = ((pipeMotorSpeed >> 10) * 1000) >> 10;
 
@@ -189,8 +224,8 @@ int main() {
 
             feedback.pipeMotorPosition = pipeMotorPosition;
             feedback.pipeMotorSpeed = pipeMotorSpeed;
-            feedback.xMotorPosition = 0;
-            feedback.xMotorSpeed = 0;
+            feedback.xMotorPosition = xMotorPosition;
+            feedback.xMotorSpeed = xMotorSpeed;
 
             socket.sendto("192.168.4.8", 8042, &feedback, sizeof feedback);
         }
