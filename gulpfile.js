@@ -34,7 +34,28 @@ function copyBin(callback) {
 
             const targetPath = drives[0].mountpoints[0].path + '//cdp_gc_2017_mbed_firmware.bin';
 
-            copyFile('BUILD/LPC1768/GCC_ARM/cdpgc17-mbed-firmware.bin', targetPath, callback);
+            let direcory = 'BUILD/LPC1768/GCC_ARM/';
+
+            let fileNames = fs.readdirSync(direcory);
+
+            let binFileNames = fileNames.filter(function (fileName) {
+                return fileName.match(/.*\.bin/ig);
+            });
+
+            console.log('binFileNames', binFileNames);
+
+            if (binFileNames.length === 1) {
+                copyFile(direcory + binFileNames[0], targetPath, callback);
+
+            } else if (binFileNames.length === 1) {
+                console.log('No *.bin files found in', direcory);
+                callback();
+
+            } else {
+                console.log(binFileNames.length, '*.bin files found in', direcory);
+                callback();
+            }
+
         } else {
             console.log('No drives found');
 
