@@ -32,8 +32,8 @@ void serialWrite(char *sendData, int length) {
     while (i < length) {
         if (motorDriverSerial.writeable()) {
             motorDriverSerial.putc(sendData[i]);
+            i++;
         }
-        i++;
     }
 }
 
