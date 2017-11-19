@@ -9,11 +9,21 @@ EthernetInterface eth;
 UDPSocket socket;
 Serial pc(USBTX, USBRX);
 Serial motorDriverSerial(p9, p10);
-Ticker ledTicker;
+Ticker heartbeatTicker;
 DigitalOut led1(LED1);
 DigitalOut led2(LED2);
+DigitalOut led3(LED3);
 
-bool ledUpdate = false;
+float heartBeatPeriod = 0.02;
+
+bool isLedUpdate = false;
+uint32_t ledUpdateCounter = 0;
+uint32_t ledUpdateLimit = 25;
+
+bool isFailsafeEnabled = true;
+bool isFailsafeActive = true;
+uint32_t failsafeCounter = 0;
+uint32_t failsafeLimit = 5;
 
 char recvBuffer[64];
 
@@ -22,8 +32,21 @@ char serialReceiveBuffer[64];
 uint32_t serialRxLength = 18;
 uint32_t serialTxLength = 18;
 
-void ledUpdateTick() {
-    ledUpdate = true;
+void heartbeatTick() {
+    ledUpdateCounter++;
+    failsafeCounter++;
+
+    if (ledUpdateCounter >= ledUpdateLimit) {
+        ledUpdateCounter = 0;
+        isLedUpdate = true;
+    }
+
+    if (failsafeCounter >= failsafeLimit) {
+        failsafeCounter = 0;
+        isFailsafeActive = true;
+    }
+
+    led3 = 0;
 }
 
 void serialWrite(char *sendData, int length) {
@@ -35,6 +58,55 @@ void serialWrite(char *sendData, int length) {
             i++;
         }
     }
+}
+
+void sendSpeeds(int xMotorSpeed, int yMotorSpeed) {
+    int yMotorPosition = yMotorSpeed < 0 ? -100 : 100;
+    int xMotorPosition = xMotorSpeed < 0 ? -100 : 100;
+
+    if (yMotorSpeed < 0) {
+        yMotorSpeed = -yMotorSpeed;
+    }
+
+    if (xMotorSpeed < 0) {
+        xMotorSpeed = -xMotorSpeed;
+    }
+
+    if (yMotorSpeed > 64000) {
+        yMotorSpeed = 64000;
+    }
+
+    if (xMotorSpeed > 64000) {
+        xMotorSpeed = 64000;
+    }
+
+    int qYMotorSpeed = ((yMotorSpeed << 10) / 1000) << 10;
+    int qYMotorPosition = yMotorPosition << 20;
+
+    int qXMotorSpeed = ((xMotorSpeed << 10) / 1000) << 10;
+    int qXMotorPosition = xMotorPosition << 20;
+
+    char sendBuffer[serialTxLength];
+
+    sendBuffer[0] = '<';
+
+    int * xPositionLocation = (int*)(&sendBuffer[1]);
+    int * xSpeedLocation = (int*)(&sendBuffer[5]);
+
+    int * yPositionLocation = (int*)(&sendBuffer[9]);
+    int * ySpeedLocation = (int*)(&sendBuffer[13]);
+
+    *yPositionLocation = qYMotorPosition;
+    *ySpeedLocation = qYMotorSpeed;
+
+    *xPositionLocation = qXMotorPosition;
+    *xSpeedLocation = qXMotorSpeed;
+
+    sendBuffer[17] = '>';
+
+    //pc.printf("serialWrite called %d %*.*s\n", 10, 10, 10, sendBuffer);
+    //pc.printf("serialWrite called\n");
+    serialWrite(sendBuffer, serialTxLength);
 }
 
 void serialRxHandler() {
@@ -85,65 +157,19 @@ void onUDPSocketData(void* buffer, int size) {
     //pc.printf("UDP data received\n");
     led2 = !led2;
 
+    failsafeCounter = 0;
+    isFailsafeActive = false;
+
     //pc.printf("sizeof(SpeedCommand) %d\n", sizeof(SpeedCommand));
     //pc.printf("size %d\n", size);
 
     if (sizeof(SpeedCommand) == size) {
         SpeedCommand * command = static_cast<SpeedCommand*>(buffer);
 
-        int pipeMotorSpeed = command->pipeMotorSpeed;
+        int yMotorSpeed = command->yMotorSpeed;
         int xMotorSpeed = command->xMotorSpeed;
-        int pipeMotorPosition = pipeMotorSpeed < 0 ? -100 : 100;
-        int xMotorPosition = xMotorSpeed < 0 ? -100 : 100;
 
-        //pc.printf("Y pos %d\n", pipeMotorPosition);
-        //pc.printf("Y speed %d\n", pipeMotorSpeed);
-        //pc.printf("X position %d\n", xMotorPosition);
-        //pc.printf("X speed %d\n", xMotorSpeed);
-
-        if (pipeMotorSpeed < 0) {
-            pipeMotorSpeed = -pipeMotorSpeed;
-        }
-
-        if (xMotorSpeed < 0) {
-            xMotorSpeed = -xMotorSpeed;
-        }
-
-        if (pipeMotorSpeed > 64000) {
-            pipeMotorSpeed = 64000;
-        }
-
-        if (xMotorSpeed > 64000) {
-            xMotorSpeed = 64000;
-        }
-
-        int qPipeMotorSpeed = ((pipeMotorSpeed << 10) / 1000) << 10;
-        int qPipeMotorPosition = pipeMotorPosition << 20;
-
-        int qXMotorSpeed = ((xMotorSpeed << 10) / 1000) << 10;
-        int qXMotorPosition = xMotorPosition << 20;
-
-        char sendBuffer[serialTxLength];
-
-        sendBuffer[0] = '<';
-
-        int * xPositionLocation = (int*)(&sendBuffer[1]);
-        int * xSpeedLocation = (int*)(&sendBuffer[5]);
-
-        int * pipePositionLocation = (int*)(&sendBuffer[9]);
-        int * pipeSpeedLocation = (int*)(&sendBuffer[13]);
-
-        *pipePositionLocation = qPipeMotorPosition;
-        *pipeSpeedLocation = qPipeMotorSpeed;
-
-        *xPositionLocation = qXMotorPosition;
-        *xSpeedLocation = qXMotorSpeed;
-
-        sendBuffer[17] = '>';
-
-        //pc.printf("serialWrite called %d %*.*s\n", 10, 10, 10, sendBuffer);
-        //pc.printf("serialWrite called\n");
-        serialWrite(sendBuffer, serialTxLength);
+        sendSpeeds(xMotorSpeed, yMotorSpeed);
     }
 }
 
@@ -168,14 +194,22 @@ int main() {
 
     motorDriverSerial.attach(serialRxHandler);
 
-    ledTicker.attach(&ledUpdateTick, 0.5);
+    heartbeatTicker.attach(&heartbeatTick, heartBeatPeriod);
 
     SocketAddress address;
 
     while (true) {
-        if (ledUpdate) {
-            ledUpdate = false;
+        if (isLedUpdate) {
+            isLedUpdate = false;
             led1 = !led1;
+        }
+
+        if (isFailsafeEnabled && isFailsafeActive) {
+            isFailsafeActive = false;
+
+            sendSpeeds(0, 0);
+
+            led3 = 1;
         }
 
         nsapi_size_or_error_t size = socket.recvfrom(&address, recvBuffer, sizeof recvBuffer);
@@ -206,24 +240,24 @@ int main() {
 
             xMotorSpeed = ((xMotorSpeed >> 10) * 1000) >> 10;
 
-            int pipeMotorPosition = ((int) serialReceiveBuffer[9])
+            int yMotorPosition = ((int) serialReceiveBuffer[9])
                                  | ((int) serialReceiveBuffer[10] << 8)
                                  | ((int) serialReceiveBuffer[11] << 16)
                                  | ((int) serialReceiveBuffer[12] << 24);
 
-            pipeMotorPosition = ((pipeMotorPosition >> 10) * 1000) >> 10;
+            yMotorPosition = ((yMotorPosition >> 10) * 1000) >> 10;
 
-            int pipeMotorSpeed = ((int) serialReceiveBuffer[13])
+            int yMotorSpeed = ((int) serialReceiveBuffer[13])
                               | ((int) serialReceiveBuffer[14] << 8)
                               | ((int) serialReceiveBuffer[15] << 16)
                               | ((int) serialReceiveBuffer[16] << 24);
 
-            pipeMotorSpeed = ((pipeMotorSpeed >> 10) * 1000) >> 10;
+            yMotorSpeed = ((yMotorSpeed >> 10) * 1000) >> 10;
 
             Feedback feedback;
 
-            feedback.pipeMotorPosition = pipeMotorPosition;
-            feedback.pipeMotorSpeed = pipeMotorSpeed;
+            feedback.yMotorPosition = yMotorPosition;
+            feedback.yMotorSpeed = yMotorSpeed;
             feedback.xMotorPosition = xMotorPosition;
             feedback.xMotorSpeed = xMotorSpeed;
 

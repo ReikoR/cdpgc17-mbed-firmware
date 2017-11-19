@@ -3,3 +3,4 @@ BUILD/
 cmake-build-debug/
 node_modules/
 *.pyc
+.temp/
