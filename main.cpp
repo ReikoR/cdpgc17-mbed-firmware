@@ -23,7 +23,7 @@ uint32_t ledUpdateLimit = 25;
 bool isFailsafeEnabled = true;
 bool isFailsafeActive = true;
 uint32_t failsafeCounter = 0;
-uint32_t failsafeLimit = 5;
+uint32_t failsafeLimit = 10;
 
 char recvBuffer[64];
 
@@ -61,8 +61,8 @@ void serialWrite(char *sendData, int length) {
 }
 
 void sendSpeeds(int xMotorSpeed, int yMotorSpeed) {
-    int yMotorPosition = yMotorSpeed < 0 ? -100 : 100;
-    int xMotorPosition = xMotorSpeed < 0 ? -100 : 100;
+    int yMotorPosition = yMotorSpeed < 0 ? -10000 : 110000;
+    int xMotorPosition = xMotorSpeed < 0 ? -17700 : 17700;
 
     if (yMotorSpeed < 0) {
         yMotorSpeed = -yMotorSpeed;
@@ -81,10 +81,10 @@ void sendSpeeds(int xMotorSpeed, int yMotorSpeed) {
     }
 
     int qYMotorSpeed = ((yMotorSpeed << 10) / 1000) << 10;
-    int qYMotorPosition = yMotorPosition << 20;
+    int qYMotorPosition = ((yMotorPosition << 10) / 1000) << 10;
 
     int qXMotorSpeed = ((xMotorSpeed << 10) / 1000) << 10;
-    int qXMotorPosition = xMotorPosition << 20;
+    int qXMotorPosition = ((xMotorPosition << 10) / 1000) << 10;
 
     char sendBuffer[serialTxLength];
 
@@ -175,7 +175,7 @@ void onUDPSocketData(void* buffer, int size) {
 
 // Socket demo
 int main() {
-    https://github.com/ARMmbed/mbed-os-example-blinky/issues/78
+    //https://github.com/ARMmbed/mbed-os-example-blinky/issues/78
 
     pc.baud(115200);
 
