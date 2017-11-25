@@ -13,8 +13,10 @@ Ticker heartbeatTicker;
 DigitalOut led1(LED1);
 DigitalOut led2(LED2);
 DigitalOut led3(LED3);
-DigitalIn start(p1);
-DigitalIn stop(p2);
+DigitalIn start(p21);
+DigitalIn stop(p22);
+
+//Timer t;
 
 float heartBeatPeriod = 0.02;
 
@@ -63,7 +65,7 @@ void serialWrite(char *sendData, int length) {
 }
 
 void sendSpeeds(int xMotorSpeed, int yMotorSpeed) {
-    int yMotorPosition = yMotorSpeed < 0 ? -10000 : 110000;
+    int yMotorPosition = yMotorSpeed < 0 ? -110000 : 110000;
     int xMotorPosition = xMotorSpeed < 0 ? -17700 : 17700;
 
     if (yMotorSpeed < 0) {
@@ -178,6 +180,9 @@ void onUDPSocketData(void* buffer, int size) {
 // Socket demo
 int main() {
     //https://github.com/ARMmbed/mbed-os-example-blinky/issues/78
+
+    start.mode(PullDown);
+    stop.mode(PullDown);
 
     pc.baud(115200);
 
