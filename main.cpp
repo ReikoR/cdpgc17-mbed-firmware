@@ -13,6 +13,8 @@ Ticker heartbeatTicker;
 DigitalOut led1(LED1);
 DigitalOut led2(LED2);
 DigitalOut led3(LED3);
+DigitalIn start(p1);
+DigitalIn stop(p2);
 
 float heartBeatPeriod = 0.02;
 
@@ -260,6 +262,8 @@ int main() {
             feedback.yMotorSpeed = yMotorSpeed;
             feedback.xMotorPosition = xMotorPosition;
             feedback.xMotorSpeed = xMotorSpeed;
+            feedback.start = start;
+            feedback.stop = stop;
 
             socket.sendto("192.168.4.8", 8042, &feedback, sizeof feedback);
         }
